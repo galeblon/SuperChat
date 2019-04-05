@@ -34,7 +34,10 @@ int main() {
 	sa.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	result = bind(s, (struct sockaddr FAR*)&sa, sizeof(sa));
-
+	if (result == SOCKET_ERROR) {
+		printf("\nBlad polaczenia!");
+		return 0;
+	}
 	result = listen(s, MAX_CONNECTIONS);
 	
 	// Create thread responsible for listening to connections
@@ -128,6 +131,11 @@ DWORD WINAPI client_t(void * params){
 					return 0;
 				}
 				printf("\n%s", buf);
+				//Wysyłanie do innych socketów
+				//Ordynarne, ale działa
+				for (int i = 0; i < curr_connections; ++i)
+					if (sockets[i] != *si)
+						send(sockets[i], buf, 80, MSG_OOB); 
 			} else {
 				printf("\nAbrupt connection end.");
 				return 0;
