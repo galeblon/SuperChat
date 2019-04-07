@@ -1,12 +1,15 @@
 #include<WinSock2.h>
 #include<stdio.h>
 #include<windows.h>
-
+#include<conio.h>
 #define ST_PORT 61234
 
 DWORD WINAPI read_t(void *params);
 
 SOCKET s;
+int dlug;
+int curr_len = 0;
+char buf[80];
 
 int main(int argc, char* argv[]) {
 	
@@ -38,22 +41,30 @@ int main(int argc, char* argv[]) {
 		0,
 		&id);
 	
-	/*
-	struct sockaddr my_conn;
-	int len;
-	getsockname(s, &my_conn, &len);
-	struct sockaddr_in *my_conn_in = (struct sockaddr_in*) my_conn;
-	printf("%d", my_conn_in->sin_port);
-	*/
-	
-	int dlug;
-	char buf[80];
+
 	for (;;) {	
-		fgets(buf, 80, stdin);
-		dlug = strlen(buf);
-		buf[dlug - 1] = '\0';
-		send(s, buf, dlug, 0);
+		// Get input from keyboard
+		int len = 80;
+		char key;
+		// 32 - enter key
+		while((key = getche()) != 13 || curr_len == 0){ // Enter
+			if(curr_len > 0 && key == 8){ // Backspace
+				curr_len--;
+				printf(" \b");
+			}
+			if(curr_len < (len-1) && key != 13 && key != 8){
+				//printf("KEY:%d|", key);
+				buf[curr_len++] = key;
+			}
+		}
+		printf("\n");
+		//clear the rest of line;
+		while(curr_len < len)
+			buf[curr_len++] = '\0';
+
+		send(s, buf, len, 0);
 		if (strcmp(buf, "KONIEC") == 0) break;
+		curr_len = 0;
 		
 	}
 	closesocket(s);
@@ -63,11 +74,15 @@ int main(int argc, char* argv[]) {
 
 
 DWORD WINAPI read_t(void * params){
-	char buf[80];
+	char buf_r[80];
 	while(1)
 	{
-		if(recv(s, buf, 80, 0) > 0){
-			printf("%s\n", buf);
+		if(recv(s, buf_r, 80, 0) > 0){
+			// Return to beginning of line to print new message.
+			printf("\r%-80s\n", buf_r);
+			// Reprint currently written message.
+			for(int i=0; i<curr_len; i++)
+				printf("%c", buf[i]);
 		}
 	}
 }
