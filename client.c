@@ -4,13 +4,17 @@
 #include<conio.h>
 #define ST_PORT 61234
 
+void set_username();
+void strjoi(char* to, char* f1, char* f2, int l1, int l2);
 void fill_buf(char* buf, int len);
 DWORD WINAPI read_t(void *params);
 
 SOCKET s;
 int dlug;
 int curr_len = 0;
-char buf[80];
+char buf[75];
+char namebuf[5];
+char fullbuf[80];
 int exit_program = 0;
 
 int main(int argc, char* argv[]) {
@@ -42,17 +46,23 @@ int main(int argc, char* argv[]) {
 		NULL,
 		0,
 		&id);
-	
+
+	set_username();
 
 	for (;;) {	
 		// Get input from keyboard
-		int len = 80;
+		int len = 75;
 		
 		fill_buf(buf, len);
+		
+		strjoi(fullbuf, namebuf, buf, 5, 75);
 
-		send(s, buf, len, 0);
-		if (strcmp(buf, "KONIEC") == 0) break;
-		curr_len = 0;
+		if (strcmp(buf, "KONIEC") == 0) {
+			send(s, buf, 75, 0);
+			break;
+		}		
+		else
+			send(s, fullbuf, 80, 0);
 		
 	}
 	exit_program = 1;
@@ -80,7 +90,7 @@ DWORD WINAPI read_t(void * params){
 }
 
 void fill_buf(char* buf, int len) {
-	char key, cur_len = 0;
+	char key;
 	// 32 - enter key
 	while((key = getch()) != 13 || curr_len == 0){ // Enter
 		if(curr_len > 0 && key == 8){ // Backspace
@@ -97,4 +107,25 @@ void fill_buf(char* buf, int len) {
 	//clear the rest of line;
 	while(curr_len < len)
 		buf[curr_len++] = '\0';
+		
+	curr_len = 0;
+}
+
+void strjoi(char* to, char* f1, char* f2, int l1, int l2) {
+	int toLoc = 0, fromLoc;
+	for(fromLoc=0; fromLoc < l1; fromLoc++) {
+		to[toLoc] = f1[fromLoc];
+		toLoc++;
+	}
+	for(fromLoc=0; fromLoc < l2; fromLoc++) {
+		to[toLoc] = f2[fromLoc];
+		toLoc++;
+	}
+}
+
+void set_username() {
+	printf("First, please choose your username, up to 3 letters in length.\n");
+	fill_buf(namebuf, 4);
+	namebuf[3] = '>';
+	namebuf[4] = ' ';
 }
