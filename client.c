@@ -4,6 +4,7 @@
 #include<conio.h>
 #define ST_PORT 61234
 
+void fill_buf(char* buf, int len);
 DWORD WINAPI read_t(void *params);
 
 SOCKET s;
@@ -46,23 +47,8 @@ int main(int argc, char* argv[]) {
 	for (;;) {	
 		// Get input from keyboard
 		int len = 80;
-		char key;
-		// 32 - enter key
-		while((key = getch()) != 13 || curr_len == 0){ // Enter
-			if(curr_len > 0 && key == 8){ // Backspace
-				curr_len--;
-				printf("\b \b");
-			}
-			if(curr_len < (len-1) && key != 13 && key != 8){
-				//printf("KEY:%d|", key);
-				buf[curr_len++] = key;
-				printf("%c", key);
-			}
-		}
-		printf("\n");
-		//clear the rest of line;
-		while(curr_len < len)
-			buf[curr_len++] = '\0';
+		
+		fill_buf(buf, len);
 
 		send(s, buf, len, 0);
 		if (strcmp(buf, "KONIEC") == 0) break;
@@ -91,4 +77,24 @@ DWORD WINAPI read_t(void * params){
 				printf("%c", buf[i]);
 		}
 	}
+}
+
+void fill_buf(char* buf, int len) {
+	char key, cur_len = 0;
+	// 32 - enter key
+	while((key = getch()) != 13 || curr_len == 0){ // Enter
+		if(curr_len > 0 && key == 8){ // Backspace
+			curr_len--;
+			printf("\b \b");
+		}
+		if(curr_len < (len-1) && key != 13 && key != 8){
+			//printf("KEY:%d|", key);
+			buf[curr_len++] = key;
+			printf("%c", key);
+		}
+	}
+	printf("\n");
+	//clear the rest of line;
+	while(curr_len < len)
+		buf[curr_len++] = '\0';
 }
