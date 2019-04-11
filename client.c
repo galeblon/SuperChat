@@ -10,6 +10,7 @@ SOCKET s;
 int dlug;
 int curr_len = 0;
 char buf[80];
+int exit_program = 0;
 
 int main(int argc, char* argv[]) {
 	
@@ -68,6 +69,10 @@ int main(int argc, char* argv[]) {
 		curr_len = 0;
 		
 	}
+	exit_program = 1;
+	DWORD dwEvent = WaitForSingleObject( 
+        thread,       		// object
+        50000); 	 		// five second wait
 	closesocket(s);
 	WSACleanup();
 	return 0;
@@ -76,7 +81,7 @@ int main(int argc, char* argv[]) {
 
 DWORD WINAPI read_t(void * params){
 	char buf_r[80];
-	while(1)
+	while(!exit_program)
 	{
 		if(recv(s, buf_r, 80, 0) > 0){
 			// Return to beginning of line to print new message.

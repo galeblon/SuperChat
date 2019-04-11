@@ -136,7 +136,7 @@ DWORD WINAPI client_t(void * params){
 				//Ordynarne, ale działa
 				for (int i = 0; i < curr_connections; ++i)
 					if (sockets[i] != *si)
-						send(sockets[i], buf, 80, MSG_OOB); 
+						send(sockets[i], buf, 80, 0); 
 			} else {
 				printf("\nAbrupt connection end.");
 				return 0;
