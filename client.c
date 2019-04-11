@@ -47,14 +47,15 @@ int main(int argc, char* argv[]) {
 		int len = 80;
 		char key;
 		// 32 - enter key
-		while((key = getche()) != 13 || curr_len == 0){ // Enter
+		while((key = getch()) != 13 || curr_len == 0){ // Enter
 			if(curr_len > 0 && key == 8){ // Backspace
 				curr_len--;
-				printf(" \b");
+				printf("\b \b");
 			}
 			if(curr_len < (len-1) && key != 13 && key != 8){
 				//printf("KEY:%d|", key);
 				buf[curr_len++] = key;
+				printf("%c", key);
 			}
 		}
 		printf("\n");
