@@ -124,7 +124,6 @@ DWORD WINAPI client_t(void * params){
 		FD_ZERO(&can_read);
 		FD_SET(*si, &can_read);
 		if(select(1, &can_read, NULL, NULL, &timeout) == 1){
-			printf("MOGE CZYTAC\n");
 			if(recv(*si, buf, 80, 0) > 0){
 				if (strcmp(buf, "KONIEC") == 0) {
 					closesocket(*si);
