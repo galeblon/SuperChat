@@ -30,6 +30,7 @@ int main(int argc, char* argv[]) {
 	sa.sin_port = htons(ST_PORT);
 	sa.sin_addr.s_addr = inet_addr(argv[1]);
 
+	set_username();
 	int result;
 	result = connect(s, (struct sockaddr FAR *)&sa, sizeof(sa));
 	if (result == SOCKET_ERROR) {
@@ -46,10 +47,8 @@ int main(int argc, char* argv[]) {
 		NULL,
 		0,
 		&id);
-	
-	set_username();
 
-	for (;;) {	
+	while (!exit_program) {	
 		// Get input from keyboard
 		int len = 75;
 
@@ -76,11 +75,22 @@ DWORD WINAPI read_t(void * params){
 	while(!exit_program)
 	{
 		if(recv(s, buf_r, 80, 0) > 0){
+			if(strcmp("REFUSED", buf_r) == 0){
+				exit_program = 1;
+				printf("Connection refused!\n");
+				break;
+			} else if(strcmp("END", buf_r) == 0){
+				printf("Connection ended\n");
+				exit_program = 1;
+				break;
+			}
 			// Return to beginning of line to print new message.
 			printf("\r%-80s\n", buf_r);
 			// Reprint currently written message.
 			for(int i=0; i<curr_len; i++)
 				printf("%c", buf[i]);
+		} else{
+			exit_program = 1;
 		}
 	}
 }
