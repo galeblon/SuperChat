@@ -98,6 +98,8 @@ DWORD WINAPI read_t(void * params){
 void fill_buf(char* buf, int len) {
 	char key;
 	// 32 - enter key
+	for(int i=0; i<5; i++)
+		printf("%c", namebuf[i]);
 	while ((key = getch()) != 13 || curr_len == 0) { // Enter
 		if (curr_len > 0 && key == 8) { // Backspace
 			curr_len--;
