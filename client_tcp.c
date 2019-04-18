@@ -86,6 +86,8 @@ DWORD WINAPI read_t(void * params){
 			}
 			// Return to beginning of line to print new message.
 			printf("\r%-80s\n", buf_r);
+				for(int i=0; i<5; i++)
+			printf("%c", namebuf[i]);
 			// Reprint currently written message.
 			for(int i=0; i<curr_len; i++)
 				printf("%c", buf[i]);
