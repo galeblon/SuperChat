@@ -206,9 +206,6 @@ void* connection_listening(void *params){
 		}
 	}
 
-
-	while(program_running)
-		printf("running\n");
 	printf("Stopping listening\n");
 	return NULL;
 }
