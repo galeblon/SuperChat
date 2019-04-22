@@ -177,7 +177,7 @@ void* connection_listening(void *params){
 	while(program_running){
 		FD_SET(sock_id, &can_read);
 		timeout.tv_sec = 3;
-		if((nready = select(sock_id+1, &can_read, NULL, NULL, &timeout)) > 0){ //Select not working correctly should be == 1
+		if((nready = select(sock_id+1, &can_read, NULL, NULL, &timeout)) > 0){
 			pthread_mutex_lock(&m);
 			printf("There is a connection: %d\n", nready);
 			if(curr_connections < MAX_CONNECTIONS){
