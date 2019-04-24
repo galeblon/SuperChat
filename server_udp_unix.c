@@ -41,7 +41,7 @@ void dll_insert(struct sockaddr_in* conn, struct connection_node** first, struct
 	if(*first == *last && *first == NULL){
 		*first = *last =  malloc(sizeof(struct connection_node));
 		(*first)->connection = conn;
-		(*first)->ttl = 15; // Time to live
+		(*first)->ttl = 5; // Time to live
 		(*first)->next = (*first)->prev = NULL;
 		return;
 	}
@@ -50,7 +50,7 @@ void dll_insert(struct sockaddr_in* conn, struct connection_node** first, struct
 	//	iterator = iterator->next;
 	iterator->next = malloc(sizeof(struct connection_node));
 	iterator->next->connection = conn;
-	iterator->next->ttl = 15;
+	iterator->next->ttl = 5;
 	iterator->next->next = NULL;
 	iterator->next->prev = iterator;
 	*last = iterator->next;
@@ -61,7 +61,7 @@ void dll_remove(struct sockaddr_in* conn, struct connection_node** first, struct
 	struct connection_node* iterator = *first;
 	if(*first == NULL)
 		return;
-	while(memcmp(iterator->connection, conn, sizeof(struct sockaddr_in)) != 0 && iterator != NULL){
+	while(iterator != NULL && memcmp(iterator->connection, conn, sizeof(struct sockaddr_in)) != 0){
 		iterator = iterator->next;
 	}
 	if(iterator == NULL)
@@ -70,8 +70,22 @@ void dll_remove(struct sockaddr_in* conn, struct connection_node** first, struct
 		iterator->prev->next = iterator->next;
 	if(iterator->next != NULL)
 		iterator->next->prev = iterator->prev;
+	if(iterator == *first)
+		*first = iterator->next;
+	if(iterator == *last)
+		*last = iterator->prev;
 	free(iterator->connection);
 	free(iterator);
+}
+
+struct connection_node* dll_contains(struct sockaddr_in* conn, struct connection_node** first, struct connection_node** last){
+	struct connection_node* iterator = *first;
+	if(*first == NULL)
+		return NULL;
+	while(iterator != NULL && memcmp(iterator->connection, conn, sizeof(struct sockaddr_in)) != 0 ){
+		iterator = iterator->next;
+	}
+	return iterator;
 }
 
 void dll_clean(struct connection_node** first){
@@ -100,6 +114,8 @@ struct connection_node* last = NULL;
 
 void* packet_listening(void* params);
 void* ttl_update(void* params);
+
+void parse_system_message(char* msg, struct sockaddr_in sc);
 
 int main(){
 	//Initialize semaphore
@@ -165,7 +181,8 @@ int main(){
 /*
  * System messages:
  * SYSTEM_JOIN -> client want to subscribe to server
- * SYSTEM_DISCONNECT -> client manually
+ * SYSTEM_DISCONNECT -> client manually unsubscribes
+ * SYSTEM_PING -> client refreshes his subscribtion
  */
 void* packet_listening(void* params){
 	char buf[80];
@@ -189,9 +206,15 @@ void* packet_listening(void* params){
 				//printf("Received a packet from %s\n: %s\n", conn_addr, buf);
 				if(strncmp(buf, "SYSTEM", 6)== 0){
 					printf("Received system packet from %s:\n\t%s", conn_addr, buf);
+					parse_system_message(buf, sc);
 				} else{
-					//CHeck if player is subscribed;
-					printf("%s", buf);
+					pthread_mutex_lock(&m);
+					if (dll_contains(&sc, &first, &last) != NULL){
+						printf("%s", buf);
+						//Resend to every subscribed cllient
+					} else
+						printf("Non-subscribed client tried to send message: %s\n", conn_addr);
+					pthread_mutex_unlock(&m);
 				}
 			} else {
 				printf("Could not receive packet!\n");
@@ -203,7 +226,66 @@ void* packet_listening(void* params){
 	return NULL;
 }
 
+void parse_system_message(char* msg, struct sockaddr_in sc){
+	if(strncmp(msg, "SYSTEM_JOIN", 11) == 0){
+		if(curr_connections < MAX_CONNECTIONS){
+			pthread_mutex_lock(&m);
+			if(dll_contains(&sc, &first, &last) == NULL){
+				struct sockaddr_in* conn = malloc(sizeof(struct sockaddr_in));
+				memcpy(conn, &sc, sizeof(struct sockaddr_in));
+				dll_insert(conn, &first, &last);
+				curr_connections++;
+				printf("Added new subscriber\n");
+			} else{
+				printf("Cannot add subscriber: already subscribed!\n");
+			}
+			pthread_mutex_unlock(&m);
+		} else{
+			printf("Connection refused: Server full\n");
+		}
+	} else if(strncmp(msg, "SYSTEM_DISCONNECT", 17) == 0){
+		pthread_mutex_lock(&m);
+		if(dll_contains(&sc, &first, &last) != NULL){
+			dll_remove(&sc, &first, &last);
+			curr_connections--;
+			printf("Removed subscriber\n");
+		} else{
+			printf("Cannot remove subscriber: not subscribed!\n");
+		}
+		pthread_mutex_unlock(&m);
+	} else if(strncmp(msg, "SYSTEM_PING", 11) == 0){
+		struct connection_node* client;
+		pthread_mutex_lock(&m);
+		if((client = dll_contains(&sc, &first, &last)) != NULL){
+			client->ttl = 5;
+		} else{
+			printf("Cannot ping subscriber: not subscribed!\n");
+		}
+		pthread_mutex_unlock(&m);
+	} else{
+		printf("Unrecognized system message:\n%s\n", msg);
+	}
+}
+
 void* ttl_update(void* params){
-	while(program_running);
+	struct connection_node* iterator;
+	while(program_running){
+		iterator = first;
+		pthread_mutex_lock(&m);
+		while(iterator != NULL){
+			if(--iterator->ttl < 0){
+				//Remove user: timeout
+				struct connection_node* local = iterator;
+				iterator = iterator->next;
+				dll_remove(local->connection, &first, &last);
+				curr_connections--;
+				printf("User timeout: disconnected\n");
+			} else
+				iterator = iterator->next;
+		}
+		pthread_mutex_unlock(&m);
+		sleep(2);
+	}
 	return NULL;
 }
+
