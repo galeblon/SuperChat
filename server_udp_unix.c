@@ -10,6 +10,7 @@
  * Main thread: listening for keyboard inputs
  * Thread 1: listening for UDP packets
  * Thread 2: updating TTL
+ * Thread 3+: client handling
  */
 
 /*
@@ -30,6 +31,11 @@
 
 #define ST_PORT 61234
 #define MAX_CONNECTIONS 3
+
+struct client{
+	char* msg;
+	struct sockaddr_in* addr;
+};
 
 struct connection_node{
 	struct connection_node* prev, *next;
@@ -114,6 +120,7 @@ struct connection_node* last = NULL;
 
 void* packet_listening(void* params);
 void* ttl_update(void* params);
+void* handle_client(void* params);
 
 void parse_system_message(char* msg, struct sockaddr_in sc);
 
@@ -143,6 +150,9 @@ int main(){
 		return 3;
 	}
 
+	//Initial packet;
+	sendto(sock_id, "SYSTEM_INITIAL", 15, 0, (struct sockaddr*)&serv_addr, sizeof(struct sockaddr_in));
+
 	//Server setup done
 	pthread_mutex_lock(&m);
 	//Create thread to listen for packets
@@ -169,6 +179,13 @@ int main(){
 
 	printf("All threads stopped\n");
 
+	//Send shutdown signal to all clients;
+	struct connection_node* iterator = first;
+	while(iterator != NULL){
+		sendto(sock_id, "SYSTEM_SHUTDOWN", 15, 0, (struct sockaddr*)iterator->connection, sizeof(struct sockaddr_in));
+		iterator = iterator->next;
+	}
+
 	//Destroy semaphore
 	pthread_mutex_destroy(&m);
 	//Clear connection dll
@@ -183,6 +200,7 @@ int main(){
  * SYSTEM_JOIN -> client want to subscribe to server
  * SYSTEM_DISCONNECT -> client manually unsubscribes
  * SYSTEM_PING -> client refreshes his subscribtion
+ * SYSTEM_SHUTDOWN -> server informs clients it's shutting down
  */
 void* packet_listening(void* params){
 	char buf[80];
@@ -201,21 +219,14 @@ void* packet_listening(void* params){
 		timeout.tv_sec = 3;
 		if((nready = select(sock_id+1, &can_read, NULL, NULL, &timeout)) > 0){
 			if (recvfrom(sock_id, buf, buf_len, 0, (struct sockaddr *) &sc, &lenc) > 0) {
-				char conn_addr[20];
-				inet_ntop(AF_INET, &(sc.sin_addr), conn_addr, 20);
-				//printf("Received a packet from %s\n: %s\n", conn_addr, buf);
-				if(strncmp(buf, "SYSTEM", 6)== 0){
-					printf("Received system packet from %s:\n\t%s", conn_addr, buf);
-					parse_system_message(buf, sc);
-				} else{
-					pthread_mutex_lock(&m);
-					if (dll_contains(&sc, &first, &last) != NULL){
-						printf("%s", buf);
-						//Resend to every subscribed cllient
-					} else
-						printf("Non-subscribed client tried to send message: %s\n", conn_addr);
-					pthread_mutex_unlock(&m);
-				}
+				//Create new thread to handle client;
+				struct client* c_handle = malloc(sizeof(struct client));
+				c_handle->addr = malloc(sizeof(struct sockaddr_in));
+				c_handle->msg = malloc(80);
+				memcpy(c_handle->addr, &sc, sizeof(struct sockaddr_in));
+				memcpy(c_handle->msg, buf, buf_len);
+				pthread_t c_handler_t;
+				pthread_create(&c_handler_t, NULL, &handle_client, (void*)c_handle);
 			} else {
 				printf("Could not receive packet!\n");
 			}
@@ -289,3 +300,33 @@ void* ttl_update(void* params){
 	return NULL;
 }
 
+void* handle_client(void* params){
+	struct client* c_handle = (struct client*) params;
+	struct sockaddr_in sc = *c_handle->addr;
+	char* buf = c_handle->msg;
+
+	char conn_addr[20];
+	inet_ntop(AF_INET, &(sc.sin_addr), conn_addr, 20);
+	//printf("Received a packet from %s\n: %s\n", conn_addr, buf);
+	if(strncmp(buf, "SYSTEM", 6)== 0){
+		printf("Received system packet from %s:\n\t%s\n", conn_addr, buf);
+		parse_system_message(buf, sc);
+	} else{
+		pthread_mutex_lock(&m);
+		if (dll_contains(&sc, &first, &last) != NULL){
+			printf("%s\n", buf);
+			//Resend to every subscribed cllient
+			struct connection_node* iterator = first;
+			while(iterator != NULL){
+				sendto(sock_id, buf, 80, 0, (struct sockaddr*)iterator->connection, sizeof(struct sockaddr_in));
+				iterator = iterator->next;
+			}
+		} else
+			printf("Non-subscribed client tried to send message: %s\n", conn_addr);
+		pthread_mutex_unlock(&m);
+	}
+	free(buf);
+	free(c_handle->addr);
+	free((struct client*) params);
+	return NULL;
+}
