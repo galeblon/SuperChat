@@ -8,6 +8,7 @@ void set_username();
 void strjoi(char* to, char* f1, char* f2, int l1, int l2);
 void fill_buf(char* buf, int len);
 DWORD WINAPI read_t(void *params);
+DWORD WINAPI ping_t(void *params);
 
 SOCKET s;
 int dlug;
@@ -35,9 +36,19 @@ int main(int argc, char* argv[]) {
 	sa_len = sizeof(sa);
 
 	// Subscribe to chat server
-
 	set_username();
-	sendto(s, "JOIN", 4, 0, (struct sockaddr*)&sa, sizeof sa);
+	sendto(s, "SYSTEM_JOIN", 11, 0, (struct sockaddr*)&sa, sizeof sa);
+	printf("\n");
+	//Tworzenie wątku podtrzymującego przy życiu
+	HANDLE ping_thread;
+	DWORD id_ping;
+	ping_thread = CreateThread(
+		NULL,
+		0,
+		ping_t,
+		NULL,
+		0,
+		&id_ping);
 	//Tworzenie wątku odczytującego datagramy UDP
 	HANDLE thread;
 	DWORD id;
@@ -63,9 +74,14 @@ int main(int argc, char* argv[]) {
 		curr_len = 0;
 		
 	}
+	// Disconnect from server
+	sendto(s, "SYSTEM_DISCONNECT", 17, 0, (struct sockaddr*)&sa, sizeof sa);
 	exit_program = 1;
 	DWORD dwEvent = WaitForSingleObject( 
         thread,       		// object
+        2000); 	 			// 2 second wait
+	dwEvent = WaitForSingleObject( 
+        ping_thread,       		// object
         2000); 	 			// 2 second wait
 	closesocket(s);
 	WSACleanup();
@@ -80,8 +96,10 @@ DWORD WINAPI read_t(void * params){
 	{
 		memset(buf_r, '\0', 80);
 		recvfrom(s, buf_r, 80, 0, (struct sockaddr *) &sa, &sa_len);
-		if (strcmp("KONIEC", buf_r) == 0)
+		if (strncmp("SYSTEM_SHUTDOWN", buf_r, 15) == 0){
+			printf("\nServer shutdown\n");
 			break;
+		}
 		// Return to beginning of line to print new message.
 		printf("\r%-80s\n", buf_r);
 		// Reprint currently written message.
@@ -89,6 +107,13 @@ DWORD WINAPI read_t(void * params){
 			printf("%c", buf[i]);
 	}
 	exit_program = 1;
+}
+
+DWORD WINAPI ping_t(void *params){
+	while(!exit_program){
+		sendto(s, "SYSTEM_PING", 11, 0, (struct sockaddr*)&sa, sizeof sa);
+		Sleep(5 * 1000);
+	}
 }
 
 void fill_buf(char* buf, int len) {
